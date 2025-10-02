@@ -380,7 +380,6 @@ pub mod StarkRemit {
         audit_trail: Map<u256, AuditEntry>, // audit log
         audit_count: u256,
         emergency_pause_expiry: Map<felt252, u64>, // function selector -> expiry timestamp
-        protocol_token_paused: bool, // Tracks whether emergency withdrawals are enabled
         // Existing storage
         owner: ContractAddress, // Admin address for contract management
         oracle_address: ContractAddress, // Address of the oracle contract for exchange rates
@@ -496,7 +495,6 @@ pub mod StarkRemit {
         self.oracle_address.write(oracle_address);
         self.owner.write(owner);
         self.token_address.write(token_address);
-        self.protocol_token_paused.write(false);
         self.accesscontrol.initializer();
         self.accesscontrol._grant_role(PROTOCOL_OWNER_ROLE, owner);
 
@@ -2391,7 +2389,8 @@ pub mod StarkRemit {
 
             let configured_token = self.token_address.read();
             assert(token == configured_token, GovernanceErrors::INVALID_CONTRACT);
-            assert(self.protocol_token_paused.read(), 'TOKEN_NOT_PAUSED');
+            let token_paused = self.token_management_component.is_paused();
+            assert(token_paused, 'TOKEN_NOT_PAUSED');
 
             let caller = get_caller_address();
             let contract_address = get_contract_address();
@@ -2414,14 +2413,12 @@ pub mod StarkRemit {
 
         fn pause_protocol_token(ref self: ContractState) -> bool {
             self.accesscontrol.assert_only_role(PROTOCOL_OWNER_ROLE);
-            self.protocol_token_paused.write(true);
-            true
+            self.token_management_component.pause()
         }
 
         fn unpause_protocol_token(ref self: ContractState) -> bool {
             self.accesscontrol.assert_only_role(PROTOCOL_OWNER_ROLE);
-            self.protocol_token_paused.write(false);
-            true
+            self.token_management_component.unpause()
         }
     }
 
